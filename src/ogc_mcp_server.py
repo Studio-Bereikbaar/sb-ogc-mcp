@@ -4,9 +4,10 @@ Gives Claude access to Dutch mobility data: boundaries, NRM networks,
 ODIN travel survey analysis, accessibility maps, and more.
 """
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Image
 import httpx
 import json
+import base64
 from typing import Optional
 
 OGC_BASE = "https://tools.studiobereikbaar.nl/oapi"
@@ -266,6 +267,9 @@ async def run_modal_split(
     if postcode: inputs["postcode"] = postcode
     if province: inputs["province"] = province
     data = await _post("/processes/modal-split-analysis/execution", {"inputs": inputs})
+    img_b64 = data.get("image", "")
+    if img_b64:
+        return Image(data=base64.b64decode(img_b64), format="png")
     return json.dumps(data, indent=2, default=str)[:4000]
 
 
@@ -319,6 +323,9 @@ async def run_accessibility_map(
     inputs = {"mode": mode, "amenity": amenity, "map_type": map_type, "region_type": region_type}
     if region_id: inputs["region_id"] = region_id
     data = await _post("/processes/accessibility-map/execution", {"inputs": inputs})
+    img_b64 = data.get("image", "")
+    if img_b64:
+        return Image(data=base64.b64decode(img_b64), format="png")
     return json.dumps(data, indent=2, default=str)[:4000]
 
 

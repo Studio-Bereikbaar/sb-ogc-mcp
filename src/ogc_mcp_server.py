@@ -190,12 +190,15 @@ async def run_odin_query(
     location_type: str = "departure",
     transport_mode: Optional[str] = None,
     trip_purpose: Optional[str] = None,
+    distance_category: Optional[str] = None,
+    stedelijkheid: Optional[str] = None,
     year_min: int = 2004,
     year_max: int = 2023,
     include_trends: bool = True,
+    include_cross_tabs: bool = False,
 ) -> str:
-    """Run ODIN travel survey analysis for a location.
-    Returns modal split, trip purposes, distance distribution, and 20-year trends.
+    """Run ODIN travel survey analysis for a Dutch location (20 years of data, ~3M trips).
+    Returns modal split, trip purposes, distance distribution, hourly patterns, and trends.
     Provide at least one of: municipality, postcode, or province.
 
     Args:
@@ -203,45 +206,63 @@ async def run_odin_query(
         postcode: 4-digit postcode (e.g. '1012', '3013')
         province: Province code (e.g. 'NH', 'ZH', 'UT')
         location_type: 'departure' or 'arrival'
-        transport_mode: filter by mode (e.g. 'Fiets', 'Auto-best', 'Trein', 'Lopen')
-        trip_purpose: filter by purpose (e.g. 'Werken', 'Winkelen/boodschappen doen')
+        transport_mode: filter by mode (e.g. 'Fiets', 'Auto-best', 'Trein', 'Lopen', 'Btm', 'Overig', 'Auto-pass')
+        trip_purpose: filter by purpose (e.g. 'Werken', 'Winkelen/boodschappen doen', 'Onderwijs/cursus volgen')
+        distance_category: filter by distance (e.g. '<1½km', '1½-3½', '3½-5½', '7½-12½', '25-50km', '>50km')
+        stedelijkheid: urbanization level filter
         year_min: start year (2004-2023)
         year_max: end year (2004-2023)
         include_trends: include yearly trend data
+        include_cross_tabs: include mode×purpose and mode×distance matrices
     """
-    inputs = {"location_type": location_type, "year_min": year_min, "year_max": year_max, "include_trends": include_trends}
+    inputs = {"location_type": location_type, "year_min": year_min, "year_max": year_max,
+              "include_trends": include_trends, "include_cross_tabs": include_cross_tabs}
     if municipality: inputs["municipality"] = municipality
     if postcode: inputs["postcode"] = postcode
     if province: inputs["province"] = province
     if transport_mode: inputs["transport_mode"] = transport_mode
     if trip_purpose: inputs["trip_purpose"] = trip_purpose
+    if distance_category: inputs["distance_category"] = distance_category
+    if stedelijkheid: inputs["stedelijkheid"] = stedelijkheid
     data = await _post("/processes/odin-query/execution", {"inputs": inputs})
-    return json.dumps(data, indent=2, default=str)[:4000]
+    return json.dumps(data, indent=2, default=str)[:8000]
 
 
 @mcp.tool()
 async def run_odin_compare(
     location_a_municipality: Optional[str] = None,
     location_a_postcode: Optional[str] = None,
+    location_a_province: Optional[str] = None,
     location_b_municipality: Optional[str] = None,
     location_b_postcode: Optional[str] = None,
+    location_b_province: Optional[str] = None,
+    year_min: int = 2004,
+    year_max: int = 2023,
+    include_trends: bool = False,
 ) -> str:
     """Compare ODIN travel survey data between two locations side-by-side.
-    Provide municipality name or postcode for each location.
+    Provide municipality, postcode, or province for each location.
 
     Args:
         location_a_municipality: first location municipality (e.g. 'Amsterdam')
         location_a_postcode: first location postcode (e.g. '1012')
+        location_a_province: first location province (e.g. 'NH')
         location_b_municipality: second location municipality (e.g. 'Rotterdam')
         location_b_postcode: second location postcode (e.g. '3013')
+        location_b_province: second location province (e.g. 'ZH')
+        year_min: start year (2004-2023)
+        year_max: end year (2004-2023)
+        include_trends: include yearly trend comparison
     """
-    inputs = {}
+    inputs = {"year_min": year_min, "year_max": year_max, "include_trends": include_trends}
     if location_a_municipality: inputs["location_a_municipality"] = location_a_municipality
     if location_a_postcode: inputs["location_a_postcode"] = location_a_postcode
+    if location_a_province: inputs["location_a_province"] = location_a_province
     if location_b_municipality: inputs["location_b_municipality"] = location_b_municipality
     if location_b_postcode: inputs["location_b_postcode"] = location_b_postcode
+    if location_b_province: inputs["location_b_province"] = location_b_province
     data = await _post("/processes/odin-compare/execution", {"inputs": inputs})
-    return json.dumps(data, indent=2, default=str)[:4000]
+    return json.dumps(data, indent=2, default=str)[:8000]
 
 
 @mcp.tool()
@@ -299,7 +320,7 @@ async def run_odin_spider(
         "include_internal": include_internal,
     }})
     features = data.get("features", [])
-    return f"Spider diagram: {len(features)} desire lines.\n\n" + json.dumps(data, indent=2, default=str)[:4000]
+    return f"Spider diagram: {len(features)} desire lines.\n\n" + json.dumps(data, indent=2, default=str)[:8000]
 
 
 @mcp.tool()
@@ -327,6 +348,61 @@ async def run_accessibility_map(
     if img_b64:
         return Image(data=base64.b64decode(img_b64), format="png")
     return json.dumps(data, indent=2, default=str)[:4000]
+
+
+@mcp.tool()
+async def run_odin_profile(
+    municipality: Optional[str] = None,
+    postcode: Optional[str] = None,
+    province: Optional[str] = None,
+    location_type: str = "departure",
+    year_min: int = 2004,
+    year_max: int = 2023,
+    cluster_id: Optional[int] = None,
+) -> str:
+    """Profile respondent mobility behaviour using 7 data-driven clusters.
+    Clusters: 0=Pedestrian, 1=Long-distance driver, 2=Cyclist, 3=Mid-distance driver,
+    4=Transit user, 5=Multimodal, 6=Short-distance driver.
+    Based on ~1M ODiN respondents (2004-2023).
+
+    Args:
+        municipality: Dutch municipality name (e.g. 'Amsterdam')
+        postcode: 4-digit postcode (e.g. '1012')
+        province: Province code (e.g. 'NH')
+        location_type: 'departure' or 'arrival'
+        year_min: start year (2004-2023)
+        year_max: end year (2004-2023)
+        cluster_id: filter to specific cluster (0-6), omit for all clusters
+    """
+    inputs = {"location_type": location_type, "year_min": year_min, "year_max": year_max}
+    if municipality: inputs["municipality"] = municipality
+    if postcode: inputs["postcode"] = postcode
+    if province: inputs["province"] = province
+    if cluster_id is not None: inputs["cluster_id"] = cluster_id
+    data = await _post("/processes/odin-profile/execution", {"inputs": inputs})
+    return json.dumps(data, indent=2, default=str)[:8000]
+
+
+@mcp.tool()
+async def run_odin_spider_profile(
+    gemeente: str,
+    mode: Optional[str] = None,
+    motive: Optional[str] = None,
+) -> str:
+    """Get demographics of people traveling to/from a municipality.
+    Returns sex, age, education, income, household composition distributions,
+    plus home location distribution with gemeente centroids for mapping.
+
+    Args:
+        gemeente: Municipality name (e.g. 'Rotterdam', 'Amsterdam')
+        mode: Transport mode filter (e.g. 'Auto', 'Fiets', 'OV', 'Trein')
+        motive: Trip purpose filter (e.g. 'ToWork', 'Shopping')
+    """
+    inputs = {"gemeente": gemeente}
+    if mode: inputs["mode"] = mode
+    if motive: inputs["motive"] = motive
+    data = await _post("/processes/odin-spider-profile/execution", {"inputs": inputs})
+    return json.dumps(data, indent=2, default=str)[:8000]
 
 
 def main():

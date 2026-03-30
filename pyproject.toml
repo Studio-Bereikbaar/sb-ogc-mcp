@@ -1,12 +1,33 @@
 [project]
 name = "sb-ogc-mcp"
 version = "0.1.0"
-description = "MCP server for Studio Bereikbaar OGC API — mobility data for NL"
+description = "MCP server for Studio Bereikbaar OGC API — Dutch mobility data (ODIN, NRM, CBS boundaries, accessibility maps)"
+readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.11"
+authors = [
+    {name = "Giovanni Antoniazzi", email = "giovanni.antoniazzi@studiobereikbaar.nl"},
+]
+keywords = ["mcp", "ogc-api", "mobility", "netherlands", "studio-bereikbaar", "odin", "gis"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: GIS",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 dependencies = [
     "mcp[cli]>=1.3.0",
     "httpx>=0.27.0",
 ]
+
+[project.scripts]
+sb-ogc-mcp = "src.ogc_mcp_server:main"
+
+[project.urls]
+Homepage = "https://tools.studiobereikbaar.nl/oapi"
+Repository = "https://github.com/Studio-Bereikbaar/sb-ogc-mcp"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]

@@ -183,119 +183,142 @@ async def search_boundaries(
 
 @mcp.tool()
 async def run_odin_query(
-    zone_type: str,
-    zone_code: str,
-    direction: str = "herkomst",
+    municipality: Optional[str] = None,
+    postcode: Optional[str] = None,
+    province: Optional[str] = None,
+    location_type: str = "departure",
+    transport_mode: Optional[str] = None,
+    trip_purpose: Optional[str] = None,
+    year_min: int = 2004,
+    year_max: int = 2023,
+    include_trends: bool = True,
 ) -> str:
     """Run ODIN travel survey analysis for a location.
-    Returns modal split, trip purposes, distance distribution, and trends.
+    Returns modal split, trip purposes, distance distribution, and 20-year trends.
+    Provide at least one of: municipality, postcode, or province.
 
     Args:
-        zone_type: 'gemeente', 'wijk', 'buurt', 'pc4', or 'provincie'
-        zone_code: CBS code (e.g. 'GM0363' for Amsterdam) or postcode (e.g. '1012')
-        direction: 'herkomst' (origin) or 'bestemming' (destination)
+        municipality: Dutch municipality name (e.g. 'Amsterdam', 'Utrecht', "'s-Gravenhage")
+        postcode: 4-digit postcode (e.g. '1012', '3013')
+        province: Province code (e.g. 'NH', 'ZH', 'UT')
+        location_type: 'departure' or 'arrival'
+        transport_mode: filter by mode (e.g. 'Fiets', 'Auto-best', 'Trein', 'Lopen')
+        trip_purpose: filter by purpose (e.g. 'Werken', 'Winkelen/boodschappen doen')
+        year_min: start year (2004-2023)
+        year_max: end year (2004-2023)
+        include_trends: include yearly trend data
     """
-    body = {
-        "inputs": {
-            "zone_type": zone_type,
-            "zone_code": zone_code,
-            "direction": direction,
-        }
-    }
-    data = await _post("/processes/odin-query/execution", body)
+    inputs = {"location_type": location_type, "year_min": year_min, "year_max": year_max, "include_trends": include_trends}
+    if municipality: inputs["municipality"] = municipality
+    if postcode: inputs["postcode"] = postcode
+    if province: inputs["province"] = province
+    if transport_mode: inputs["transport_mode"] = transport_mode
+    if trip_purpose: inputs["trip_purpose"] = trip_purpose
+    data = await _post("/processes/odin-query/execution", {"inputs": inputs})
     return json.dumps(data, indent=2, default=str)[:4000]
 
 
 @mcp.tool()
 async def run_odin_compare(
-    zone_type: str,
-    zone_code_a: str,
-    zone_code_b: str,
+    location_a_municipality: Optional[str] = None,
+    location_a_postcode: Optional[str] = None,
+    location_b_municipality: Optional[str] = None,
+    location_b_postcode: Optional[str] = None,
 ) -> str:
     """Compare ODIN travel survey data between two locations side-by-side.
+    Provide municipality name or postcode for each location.
 
     Args:
-        zone_type: 'gemeente', 'wijk', 'pc4', or 'provincie'
-        zone_code_a: first location code (e.g. 'GM0363')
-        zone_code_b: second location code (e.g. 'GM0599')
+        location_a_municipality: first location municipality (e.g. 'Amsterdam')
+        location_a_postcode: first location postcode (e.g. '1012')
+        location_b_municipality: second location municipality (e.g. 'Rotterdam')
+        location_b_postcode: second location postcode (e.g. '3013')
     """
-    body = {
-        "inputs": {
-            "zone_type": zone_type,
-            "zone_code_a": zone_code_a,
-            "zone_code_b": zone_code_b,
-        }
-    }
-    data = await _post("/processes/odin-compare/execution", body)
+    inputs = {}
+    if location_a_municipality: inputs["location_a_municipality"] = location_a_municipality
+    if location_a_postcode: inputs["location_a_postcode"] = location_a_postcode
+    if location_b_municipality: inputs["location_b_municipality"] = location_b_municipality
+    if location_b_postcode: inputs["location_b_postcode"] = location_b_postcode
+    data = await _post("/processes/odin-compare/execution", {"inputs": inputs})
     return json.dumps(data, indent=2, default=str)[:4000]
 
 
 @mcp.tool()
 async def run_modal_split(
-    zone_type: str,
-    zone_code: str,
+    municipality: Optional[str] = None,
+    postcode: Optional[str] = None,
+    province: Optional[str] = None,
+    year_min: int = 2004,
+    year_max: int = 2023,
 ) -> str:
-    """Generate modal split analysis (Marimekko chart data) for a location.
+    """Generate modal split analysis (Marimekko chart) for a location.
+    Returns base64-encoded PNG image. Provide municipality, postcode, or province.
 
     Args:
-        zone_type: 'gemeente', 'wijk', 'pc4', or 'provincie'
-        zone_code: CBS code (e.g. 'GM0363')
+        municipality: Dutch municipality name (e.g. 'Amsterdam')
+        postcode: 4-digit postcode (e.g. '1012')
+        province: Province code (e.g. 'NH')
+        year_min: start year (2004-2023)
+        year_max: end year (2004-2023)
     """
-    body = {
-        "inputs": {
-            "zone_type": zone_type,
-            "zone_code": zone_code,
-        }
-    }
-    data = await _post("/processes/modal-split-analysis/execution", body)
+    inputs = {"year_min": year_min, "year_max": year_max}
+    if municipality: inputs["municipality"] = municipality
+    if postcode: inputs["postcode"] = postcode
+    if province: inputs["province"] = province
+    data = await _post("/processes/modal-split-analysis/execution", {"inputs": inputs})
     return json.dumps(data, indent=2, default=str)[:4000]
 
 
 @mcp.tool()
 async def run_odin_spider(
-    zone_type: str,
-    zone_code: str,
-    direction: str = "herkomst",
+    gemeente: str,
+    mode: str = "AllModes",
+    motive: str = "AllMotives",
+    top_n: int = 15,
+    include_internal: bool = False,
 ) -> str:
-    """Generate origin-destination desire lines (spider diagram) for a location.
-    Returns GeoJSON with arc geometries showing trip flows.
+    """Generate origin-destination desire lines (spider diagram) for a municipality.
+    Returns GeoJSON with arc geometries showing trip flows between municipalities.
 
     Args:
-        zone_type: 'gemeente', 'wijk', 'pc4'
-        zone_code: CBS code
-        direction: 'herkomst' (where do people come from) or 'bestemming' (where do they go)
+        gemeente: Municipality name (e.g. 'Rotterdam', 'Amsterdam', "'s-Gravenhage")
+        mode: Transport mode filter: AllModes, Auto, OV, Btm, Trein, Fiets, Lopen, Overig
+        motive: Trip purpose: AllMotives, ToWork, ToHome, Shopping, ToEducation, etc.
+        top_n: Number of top connections to return (1-100)
+        include_internal: Include trips within the same municipality
     """
-    body = {
-        "inputs": {
-            "zone_type": zone_type,
-            "zone_code": zone_code,
-            "direction": direction,
-        }
-    }
-    data = await _post("/processes/odin-spider/execution", body)
+    data = await _post("/processes/odin-spider/execution", {"inputs": {
+        "gemeente": gemeente,
+        "mode": mode,
+        "motive": motive,
+        "top_n": top_n,
+        "include_internal": include_internal,
+    }})
     features = data.get("features", [])
-    return f"Spider diagram: {len(features)} desire lines generated.\n\n" + json.dumps(data, indent=2, default=str)[:4000]
+    return f"Spider diagram: {len(features)} desire lines.\n\n" + json.dumps(data, indent=2, default=str)[:4000]
 
 
 @mcp.tool()
 async def run_accessibility_map(
-    zone_type: str,
-    zone_code: str,
+    mode: str,
+    amenity: str,
+    map_type: str = "traveltime",
+    region_type: str = "national",
+    region_id: Optional[str] = None,
 ) -> str:
-    """Generate BOP accessibility map for a location.
-    Returns base64-encoded PNG image of accessibility scores.
+    """Generate BOP accessibility map showing travel times to amenities.
+    Returns base64-encoded PNG image.
 
     Args:
-        zone_type: 'gemeente' or 'provincie'
-        zone_code: CBS code (e.g. 'GM0363')
+        mode: Transport mode — car_24h, car_freeflow_24h, cycle, walk, pt_walk, pt_cycle, pt_cycle_walk
+        amenity: Amenity type — bo (primary school), vo (secondary), mbo, hbo, wo, eerstehulp, huisarts, supermarkt, jobs, basket
+        map_type: Visualization — traveltime (travel time), geen_keuze (no choice), wel_keuze (with choice)
+        region_type: Extent — national, province, municipality
+        region_id: Province key (e.g. 'noord-holland') or GM code (e.g. 'GM0599'). Required when region_type is province or municipality.
     """
-    body = {
-        "inputs": {
-            "zone_type": zone_type,
-            "zone_code": zone_code,
-        }
-    }
-    data = await _post("/processes/accessibility-map/execution", body)
+    inputs = {"mode": mode, "amenity": amenity, "map_type": map_type, "region_type": region_type}
+    if region_id: inputs["region_id"] = region_id
+    data = await _post("/processes/accessibility-map/execution", {"inputs": inputs})
     return json.dumps(data, indent=2, default=str)[:4000]
 
 

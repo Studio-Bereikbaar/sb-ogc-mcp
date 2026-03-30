@@ -251,7 +251,7 @@ async def run_modal_split(
     province: Optional[str] = None,
     year_min: int = 2004,
     year_max: int = 2023,
-) -> str:
+):
     """Generate modal split analysis (Marimekko chart) for a location.
     Returns base64-encoded PNG image. Provide municipality, postcode, or province.
 
@@ -309,7 +309,7 @@ async def run_accessibility_map(
     map_type: str = "traveltime",
     region_type: str = "national",
     region_id: Optional[str] = None,
-) -> str:
+):
     """Generate BOP accessibility map showing travel times to amenities.
     Returns base64-encoded PNG image.
 

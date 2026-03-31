@@ -405,6 +405,98 @@ async def run_odin_spider_profile(
     return json.dumps(data, indent=2, default=str)[:8000]
 
 
+# ── Respondent Profile ──────────────────────────────────────────────
+
+@mcp.tool()
+async def run_respondent_profile(
+    municipality: Optional[str] = None,
+    postcode: Optional[str] = None,
+    province: Optional[str] = None,
+    year_min: int = 2004,
+    year_max: int = 2023,
+) -> str:
+    """Get demographic and mobility profile of ODIN respondents for a location.
+    Based on ~1M respondents standardized across 20 years (2004-2023).
+    Returns: sex, age, education, income, household composition, proximity class,
+    trip generation (trips/day and km/day by mode).
+    Provide at least one of: municipality, postcode, or province.
+
+    Args:
+        municipality: Dutch municipality name (e.g. 'Amsterdam', 'Rotterdam')
+        postcode: 4-digit postcode (e.g. '1012', '3013')
+        province: Province code (e.g. 'NH', 'ZH', 'UT')
+        year_min: start year (2004-2023)
+        year_max: end year (2004-2023)
+    """
+    inputs = {"year_min": year_min, "year_max": year_max}
+    if municipality: inputs["municipality"] = municipality
+    if postcode: inputs["postcode"] = postcode
+    if province: inputs["province"] = province
+    data = await _post("/processes/respondent-profile/execution", {"inputs": inputs})
+    return json.dumps(data, indent=2, default=str)[:8000]
+
+
+# ── Thematic Map ────────────────────────────────────────────────────
+
+@mcp.tool()
+async def generate_thematic_map(
+    indicator: str,
+    location: str = "national",
+    location_type: str = "gemeente",
+    year: Optional[int] = None,
+) -> str:
+    """Generate a branded SB thematic map for a location.
+    Returns base64-encoded PNG with SB styling (logo, legend, scale bar).
+
+    Available indicators:
+    - vk500-banen-density: Job density (FTE) on 500m grid
+    - vk500-inwoners-density: Population density on 500m grid
+    - vk500-urbanisation: Roland's urbanisation class (NBHK)
+    - buurt-income: Average income per resident
+    - buurt-education: High education percentage
+    - buurt-proximity-huisarts: Distance to GP
+    - leefbaarometer: Liveability score
+    - mobility-profile: Roland's 6-class mobility profile
+
+    Args:
+        indicator: Indicator ID (see above)
+        location: Municipality name, province name, or 'national'
+        location_type: 'gemeente', 'provincie', or 'national'
+        year: Data year (default: latest)
+    """
+    inputs = {"indicator": indicator, "location": location,
+              "location_type": location_type}
+    if year: inputs["year"] = year
+    data = await _post("/processes/map-thematic/execution", {"inputs": inputs})
+    img_b64 = data.get("image", "")
+    if img_b64:
+        return Image(data=base64.b64decode(img_b64), format="png")
+    return json.dumps(data, indent=2, default=str)[:4000]
+
+
+# ── Legend Discovery ────────────────────────────────────────────────
+
+@mcp.tool()
+async def list_map_indicators() -> str:
+    """List all available map indicators with their legends and data sources.
+    Use this to discover what thematic maps can be generated."""
+    data = await _post("/processes/map-thematic/execution", {
+        "inputs": {"indicator": "vk500-banen-density", "output_format": "json", "location": "national"}
+    })
+    # This is a simplified approach - ideally we'd have a discovery endpoint
+    indicators = [
+        "vk500-banen-density — Job density (FTE) on 500m grid [CBS VK500 2024]",
+        "vk500-inwoners-density — Population density on 500m grid [CBS VK500 2024]",
+        "vk500-urbanisation — Urbanisation class NBHK [Roland/CBS]",
+        "buurt-income — Average income per resident [CBS WBK 2024]",
+        "buurt-education — High education percentage [CBS WBK 2024]",
+        "buurt-proximity-huisarts — Distance to GP in km [CBS WBK 2024]",
+        "leefbaarometer — Liveability score [RIVM/BZK 2024]",
+        "mobility-profile — 6-class mobility profile [Roland/CBS]",
+    ]
+    return "Available map indicators:\n" + "\n".join(f"- {i}" for i in indicators)
+
+
 def main():
     mcp.run()
 

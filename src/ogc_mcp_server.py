@@ -10,23 +10,30 @@ import json
 import base64
 from typing import Optional
 
-OGC_BASE = "https://tools.studiobereikbaar.nl/oapi"
+API_BASE = "https://api.studiobereikbaar.nl/oapi"   # sb-api: DuckDB, fast
+TOOLS_BASE = "https://tools.studiobereikbaar.nl/oapi"  # sb-platform: QGIS rendering
 TIMEOUT = 60.0
+QGIS_TIMEOUT = 90.0
+
+# Processes that need QGIS (stay on tools server)
+QGIS_PROCESSES = {"modal-split-analysis", "accessibility-map", "map-thematic"}
 
 mcp = FastMCP("sb-ogc-api")
 
 
-async def _get(path: str, params: Optional[dict] = None) -> dict:
+async def _get(path: str, params: Optional[dict] = None, base: str = API_BASE) -> dict:
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        r = await client.get(f"{OGC_BASE}{path}", params={**(params or {}), "f": "json"})
+        r = await client.get(f"{base}{path}", params={**(params or {}), "f": "json"})
         r.raise_for_status()
         return r.json()
 
 
-async def _post(path: str, body: dict) -> dict:
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+async def _post(path: str, body: dict, qgis: bool = False) -> dict:
+    base = TOOLS_BASE if qgis else API_BASE
+    timeout = QGIS_TIMEOUT if qgis else TIMEOUT
+    async with httpx.AsyncClient(timeout=timeout) as client:
         r = await client.post(
-            f"{OGC_BASE}{path}",
+            f"{base}{path}",
             json=body,
             headers={"Content-Type": "application/json"},
         )
@@ -287,7 +294,7 @@ async def run_modal_split(
     if municipality: inputs["municipality"] = municipality
     if postcode: inputs["postcode"] = postcode
     if province: inputs["province"] = province
-    data = await _post("/processes/modal-split-analysis/execution", {"inputs": inputs})
+    data = await _post("/processes/modal-split-analysis/execution", {"inputs": inputs}, qgis=True)
     img_b64 = data.get("image", "")
     if img_b64:
         return Image(data=base64.b64decode(img_b64), format="png")
@@ -343,7 +350,7 @@ async def run_accessibility_map(
     """
     inputs = {"mode": mode, "amenity": amenity, "map_type": map_type, "region_type": region_type}
     if region_id: inputs["region_id"] = region_id
-    data = await _post("/processes/accessibility-map/execution", {"inputs": inputs})
+    data = await _post("/processes/accessibility-map/execution", {"inputs": inputs}, qgis=True)
     img_b64 = data.get("image", "")
     if img_b64:
         return Image(data=base64.b64decode(img_b64), format="png")
@@ -467,7 +474,7 @@ async def generate_thematic_map(
     inputs = {"indicator": indicator, "location": location,
               "location_type": location_type}
     if year: inputs["year"] = year
-    data = await _post("/processes/map-thematic/execution", {"inputs": inputs})
+    data = await _post("/processes/map-thematic/execution", {"inputs": inputs}, qgis=True)
     img_b64 = data.get("image", "")
     if img_b64:
         return Image(data=base64.b64decode(img_b64), format="png")
@@ -482,7 +489,7 @@ async def list_map_indicators() -> str:
     Use this to discover what thematic maps can be generated."""
     data = await _post("/processes/map-thematic/execution", {
         "inputs": {"indicator": "vk500-banen-density", "output_format": "json", "location": "national"}
-    })
+    }, qgis=True)
     # This is a simplified approach - ideally we'd have a discovery endpoint
     indicators = [
         "vk500-banen-density — Job density (FTE) on 500m grid [CBS VK500 2024]",

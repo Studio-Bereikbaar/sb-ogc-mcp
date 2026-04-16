@@ -16,7 +16,7 @@ TIMEOUT = 60.0
 QGIS_TIMEOUT = 90.0
 
 # Processes that need QGIS (stay on tools server)
-QGIS_PROCESSES = {"modal-split-analysis", "accessibility-map", "map-thematic"}
+QGIS_PROCESSES = {"accessibility-map", "map-thematic"}
 
 mcp = FastMCP("sb-ogc-api")
 
@@ -294,7 +294,7 @@ async def run_modal_split(
     if municipality: inputs["municipality"] = municipality
     if postcode: inputs["postcode"] = postcode
     if province: inputs["province"] = province
-    data = await _post("/processes/modal-split-analysis/execution", {"inputs": inputs}, qgis=True)
+    data = await _post("/processes/modal-split-analysis/execution", {"inputs": inputs})
     img_b64 = data.get("image", "")
     if img_b64:
         return Image(data=base64.b64decode(img_b64), format="png")

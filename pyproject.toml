@@ -1,6 +1,6 @@
 [project]
 name = "sb-ogc-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server for Studio Bereikbaar OGC API — Dutch mobility data (ODIN, NRM, CBS boundaries, accessibility maps)"
 readme = "README.md"
 license = {text = "MIT"}
@@ -26,7 +26,7 @@ dependencies = [
 sb-ogc-mcp = "src.ogc_mcp_server:main"
 
 [project.urls]
-Homepage = "https://tools.studiobereikbaar.nl/oapi"
+Homepage = "https://api.studiobereikbaar.nl/oapi"
 Repository = "https://github.com/Studio-Bereikbaar/sb-ogc-mcp"
 
 [tool.hatch.build.targets.wheel]
